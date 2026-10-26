@@ -1,5 +1,5 @@
 """Pure calculation logic (no Streamlit) so it can be tested and reused."""
-import json, math
+import json, math, re
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -13,8 +13,27 @@ OVR_COLS = ["request_id", "service", "type", "item", "include", "qty", "rate"]
 SET_COLS = ["request_id", "services", "rev_override", "notes"]
 
 
+CAT_HEADERS = {"service": "service", "type": "type", "item": "item", "quantity": "qty_fixed", "rates": "rate", "rate": "rate",
+               "per candidate": "per_cand", "per camera/op/guard": "per_unit", "per center": "per_center", "per centre": "per_center",
+               "rmk": "rmk", "logic": "logic"}      # "Total" column in the sheet is ignored (cost is calculated)
+
+
+def normalize_catalog(df):
+    """Catalog from Google Sheet tab / CSV. Headers: Service, Type, Item, Quantity, Rates, Total,
+    Per Candidate, Per Camera/OP/Guard, Per Center, RMK, Logic."""
+    df = df.copy()
+    df.columns = [CAT_HEADERS.get(str(c).strip().lower(), str(c).strip().lower()) for c in df.columns]
+    df = df.loc[:, ~pd.Index(df.columns).duplicated()]
+    for c in ("service", "type", "item", "rmk", "logic"):
+        df[c] = df[c].fillna("").astype(str).str.strip() if c in df.columns else ""
+    for c in ("qty_fixed", "rate", "per_cand", "per_unit", "per_center"):
+        df[c] = _to_number(df[c]) if c in df.columns else 0.0
+    df = df[df.service.isin(CAT_SERVICES) & (df["item"] != "")]
+    return df[["service", "type", "item", "qty_fixed", "rate", "per_cand", "per_unit", "per_center", "rmk", "logic"]].reset_index(drop=True)
+
+
 def load_catalog():
-    return pd.read_csv(DATA / "catalog.csv")
+    return normalize_catalog(pd.read_csv(DATA / "catalog.csv", dtype=str, keep_default_na=False))
 
 
 def load_params():
@@ -102,30 +121,31 @@ def exam_units(cand, cent, P, shifts=1, days=1):
     cpo = d.get("cand_per_operator")          # blank in Assumptions -> operators stay manual (0)
     op = max(cent * d["min_op_per_center"], math.ceil(slot / cpo)) if (cand > 0 and cpo) else 0
     fg = max(cent, 1) * d["guards_per_center"] if cand > 0 else 0
-    return {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": 0}
+    bg = math.ceil(cent * d["baggage_guards_per_center"]) if (cand > 0 and d.get("baggage_guards_per_center")) else 0
+    return {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": bg}
 
 
-# Only these catalog rows are calculated (from the Assumptions: dimensioning x days x cost-per-day).
-# Every other item is MANUAL: Qty starts at 0, rate = catalog rate, user types the Qty.
-CALC = {("CCTV", "Camera (per day)"): ("cam", "camera"),
-        ("Biometric", "Operator (per day)"): ("op", "operator"),
-        ("Frisking", "Guard (per day)"): ("fg", "guard")}
+DAYS_RE = re.compile(r"(x|\*|\u00d7|per)\s*days?\b", re.I)    # write "x days" / "per day" in the Logic column to multiply by days
+UNIT_KEY = {"CCTV": "cam", "Biometric": "op", "Frisking": "fg", "BAGGAGEMGMT": "bg"}   # what "Per Camera/OP/Guard" means per service
 
 
 def build_items(exam, services, saved_ovr, catalog, P):
-    """All catalog items for one exam with defaults + saved overrides applied."""
+    """All catalog items for one exam with defaults + saved overrides applied.
+    Qty = Quantity + PerCandidate x candidates + PerCamera/OP/Guard x units + PerCenter x centers   (x days if Logic says so)."""
     units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"])
     days = max(float(exam["days"]), 1)
     df = catalog.copy()
-    qty, rate, basis = [], [], []
-    for sv, it, r in zip(df.service, df["item"], df.rate.astype(float)):
-        c = CALC.get((sv, it))
-        if c and (units[c[0]] > 0):
-            qty.append(round(units[c[0]] * days, 2)); rate.append(float(P["rates_per_day"][c[1]])); basis.append(f"Auto: {c[0]} x days")
-        else:
-            qty.append(0.0); rate.append(r); basis.append("Manual")
+    qty, basis = [], []
+    for _, r in df.iterrows():
+        uk = UNIT_KEY[r.service]
+        q = r.qty_fixed + r.per_cand * units["cand"] + r.per_unit * units[uk] + r.per_center * units["cent"]
+        parts = ([f"{r.qty_fixed:g} fixed"] if r.qty_fixed else []) + ([f"{r.per_cand:g}/cand"] if r.per_cand else []) \
+            + ([f"{r.per_unit:g}/{uk}"] if r.per_unit else []) + ([f"{r.per_center:g}/center"] if r.per_center else [])
+        if q and DAYS_RE.search(r.logic):
+            q *= days; parts.append("x days")
+        qty.append(round(q, 2)); basis.append(" + ".join(parts) if parts else "Manual")
     df["def_qty"] = qty
-    df["def_rate"] = rate
+    df["def_rate"] = df.rate.astype(float)
     df["basis"] = basis
     df["def_cost"] = df.def_qty * df.def_rate
     df["def_include"] = df.service.isin(services).astype(int)
