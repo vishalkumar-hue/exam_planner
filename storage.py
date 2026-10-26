@@ -1,7 +1,7 @@
 """Saves per-exam overrides. Backend 'local' (CSV files) or 'gsheet' (Google Sheet) - picked automatically."""
 from pathlib import Path
 import pandas as pd
-from planner_core import OVR_COLS, SET_COLS
+from exam_logic import OVR_COLS, SET_COLS
 
 LOCAL = Path(__file__).parent / "data" / "saved"
 TABLES = {"overrides": ("Exam_Service_Overrides", OVR_COLS), "settings": ("Exam_Settings", SET_COLS)}
