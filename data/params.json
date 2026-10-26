@@ -1,19 +1,10 @@
 {
-  "max_units": {
-    "cand": 2883366,
-    "cent": 1123,
-    "cam": 25639,
-    "op": 30219,
-    "fg": 17936,
-    "bg": 6792
-  },
   "dimensioning": {
     "cand_per_camera": 24,
     "extra_cam_per_center": 3,
-    "cand_per_operator": 70,
+    "cand_per_operator": null,
     "min_op_per_center": 1,
-    "guards_per_center": 4,
-    "baggage_guards_per_center": 6
+    "guards_per_center": 4
   },
   "revenue": {
     "CCTV_per_cand": 35,
@@ -29,5 +20,10 @@
   },
   "margin_slabs": {
     "risky_below": 0.3
+  },
+  "rates_per_day": {
+    "camera": 650,
+    "operator": 900,
+    "guard": 1000
   }
 }
