@@ -20,10 +20,5 @@
   },
   "margin_slabs": {
     "risky_below": 0.3
-  },
-  "rates_per_day": {
-    "camera": 650,
-    "operator": 900,
-    "guard": 1000
   }
 }
