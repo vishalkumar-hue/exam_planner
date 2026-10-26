@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from core import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, load_params, load_exams,
-                  clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all)
+                  clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all, data_checks)
 from storage import Store
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide")
@@ -31,6 +31,12 @@ def _store():
 
 catalog, P, store = _catalog(), _params(), _store()
 
+RAW_TAB = "Raw Data"   # tab name in the Google Sheet that holds the exam list
+
+@st.cache_data(ttl=300, show_spinner="Reading Raw Data from Google Sheet...")
+def _exams_from_sheet(_store, tab):
+    return clean_exams(_store.read_tab(tab))
+
 def tables():
     if "tables" not in st.session_state:
         st.session_state.tables = {"overrides": store.load("overrides"), "settings": store.load("settings")}
@@ -41,7 +47,12 @@ with st.sidebar:
     st.title("Exam Service Planner")
     st.caption("Storage: **Google Sheet**" if store.kind == "gsheet" else "Storage: **local files** (use Google Sheet on Streamlit Cloud, see README)")
     if getattr(store, "error", None): st.warning(store.error)
-    up = st.file_uploader("Refresh exam list (Excel with 'Raw Data' sheet, or CSV)", type=["xlsx", "csv"])
+    if store.kind == "gsheet":
+        if st.button("Refresh exam list from Google Sheet", width="stretch"):
+            st.cache_data.clear()
+            st.session_state.pop("tables", None)      # reload saved changes too
+            st.rerun()
+    up = st.file_uploader("Or load an exam list for this session only (Excel with 'Raw Data' sheet, or CSV)", type=["xlsx", "csv"])
     add_overhead = st.toggle("Add overhead % of revenue", value=False,
         help=f"Logistics {P['overhead']['logistics_pct']:.0%} + Central/CCR {P['overhead']['central_pct']:.0%} of revenue (from Excel Assumptions). Off by default because logistics/procurement are already items in the catalog.")
     with st.expander("Rates used (from Assumptions)"):
@@ -49,14 +60,22 @@ with st.sidebar:
         st.write("**Dimensioning**"); st.json(P["dimensioning"], expanded=False)
         st.write("**Max scenario units**"); st.json(P["max_units"], expanded=False)
 
+exam_source = ""
 try:
     if up is not None:
         raw = pd.read_csv(up) if up.name.endswith(".csv") else pd.read_excel(up, sheet_name="Raw Data")
-        exams = clean_exams(raw)
+        exams = clean_exams(raw); exam_source = f"uploaded file ({up.name})"
+    elif store.kind == "gsheet":
+        try:
+            exams = _exams_from_sheet(store, RAW_TAB).copy(); exam_source = f"Google Sheet, tab '{RAW_TAB}'"
+        except Exception as e:
+            st.warning(f"Could not read tab '{RAW_TAB}' from the Google Sheet ({e}). Showing the backup list from data/exams.csv instead.")
+            exams = load_exams(); exam_source = "backup file data/exams.csv"
     else:
-        exams = load_exams()
+        exams = load_exams(); exam_source = "backup file data/exams.csv"
 except Exception as e:
     st.error(f"Could not read exam list: {e}"); st.stop()
+st.sidebar.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)")
 
 ovr, sett = tables()
 tab_plan, tab_all, tab_cat = st.tabs(["Exam Planner", "All Exams", "Service Catalog"])
@@ -161,6 +180,13 @@ with tab_plan:
 # ---------------- All Exams ----------------
 with tab_all:
     res = compute_all(exams, catalog, P, ovr, sett, add_overhead)
+    checks = data_checks(exams)
+    if checks:
+        with st.expander(f"Data checks - {sum(len(v) for v in checks.values())} rows may need fixing in the Google Sheet"):
+            for title, d in checks.items():
+                st.write(f"**{title}** ({len(d)})")
+                st.dataframe(d, hide_index=True, width="stretch", height=min(35 * len(d) + 40, 300),
+                             column_config={"exam_date": st.column_config.DateColumn("Date", format="DD-MMM-YYYY")})
     f1, f2 = st.columns([2, 2])
     stat = f1.multiselect("Status", sorted(res.status.unique()), default=sorted(res.status.unique()))
     q = f2.text_input("Search (Request ID / exam name)")
