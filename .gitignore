@@ -1,0 +1,19 @@
+# secrets - NEVER commit
+.streamlit/secrets.toml
+*.json.key
+service_account*.json
+
+# local saved data (use Google Sheet in production)
+data/saved/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# office temp / source reports
+~$*.xlsx
+*.xlsx
+.DS_Store
