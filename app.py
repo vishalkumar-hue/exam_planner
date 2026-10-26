@@ -2,8 +2,14 @@ import io
 import pandas as pd
 import altair as alt
 import streamlit as st
-from planner_core import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, normalize_catalog, load_params, load_exams,
-                  clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all, data_checks)
+try:
+    from exam_logic import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, normalize_catalog, load_params, load_exams,
+                      clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all, data_checks)
+except ImportError as _ex:      # Streamlit hides ImportError text, so show it
+    import os
+    st.error(f"Import problem: {_ex}")
+    st.write("Files next to app.py:", sorted(os.listdir(os.path.dirname(os.path.abspath(__file__)))))
+    st.stop()
 from storage import Store
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="collapsed")
