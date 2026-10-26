@@ -26,9 +26,30 @@ def load_exams(path=None):
     return clean_exams(df)
 
 
+def _parse_dates(series):
+    """Exam dates in the sheet are day-month-year (26-12-2025). Never let pandas guess month-first."""
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series
+    txt = series.astype(str).str.strip().str.replace(r"\s+.*$", "", regex=True)   # drop any time part
+    out = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%y", "%d.%m.%Y"):
+        todo = out.isna()
+        if not todo.any():
+            break
+        out[todo] = pd.to_datetime(txt[todo], format=fmt, errors="coerce")
+    return out
+
+
+def _to_number(series):
+    txt = series.astype(str).str.replace(",", "", regex=False).str.strip()
+    return pd.to_numeric(txt, errors="coerce").fillna(0)
+
+
 def clean_exams(df):
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
+    df = df.loc[:, [c != "" for c in df.columns]]          # blank header columns
+    df = df.loc[:, ~pd.Index(df.columns).duplicated()]     # repeated headers: keep the first
     ren = {"Request ID": "request_id", "Exam Name": "exam_name", "Exam Date": "exam_date", "Services": "services",
            "Total Centers": "centers", "Total Candidates": "candidates", "Total Shifts": "shifts", "No of Days": "days"}
     df = df.rename(columns=ren)
@@ -36,15 +57,31 @@ def clean_exams(df):
     miss = [c for c in need if c not in df.columns]
     if miss:
         raise ValueError(f"Missing columns: {miss}")
-    df = df[need].dropna(subset=["request_id"])
+    df = df[need]
+    df["request_id"] = df["request_id"].astype(str).str.strip()
+    df = df[~df["request_id"].isin(["", "nan", "None"])]
     for c in ("centers", "candidates", "shifts", "days"):
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+        df[c] = _to_number(df[c])
     df["shifts"] = df["shifts"].where(df["shifts"] > 0, 1)
     df["days"] = df["days"].where(df["days"] > 0, 1)
-    df["exam_date"] = pd.to_datetime(df["exam_date"], errors="coerce")
+    df["exam_date"] = _parse_dates(df["exam_date"])
+    df["exam_name"] = df["exam_name"].fillna("").astype(str).str.strip()
     df["services"] = df["services"].fillna("").astype(str)
-    df["request_id"] = df["request_id"].astype(str).str.strip()
+    df = df.drop_duplicates("request_id", keep="last")
     return df.reset_index(drop=True)
+
+
+def data_checks(exams):
+    """Rows in the exam list that probably need fixing in the Google Sheet."""
+    e = exams.copy()
+    out = {}
+    out["Candidates or centers missing"] = e[(e.candidates <= 0) | (e.centers <= 0)]
+    yr = e.exam_date.dt.year
+    out["Date missing or looks wrong"] = e[e.exam_date.isna() | (yr < 2024) | (yr > 2030)]
+    dup = e[e.exam_name != ""].duplicated(["exam_name", "exam_date", "candidates", "centers"], keep=False)
+    out["Same exam under several Request IDs"] = e[dup].sort_values(["exam_name", "request_id"])
+    out["No service in Raw Data"] = e[e.services.map(lambda t: len(services_from_raw(t)) == 0)]
+    return {k: v[["request_id", "exam_name", "exam_date", "services", "centers", "candidates"]] for k, v in out.items() if len(v)}
 
 
 def services_from_raw(text):
