@@ -1,25 +1,27 @@
 import io
 import pandas as pd
+import altair as alt
 import streamlit as st
 from planner_core import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, load_params, load_exams,
                   clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all, data_checks)
 from storage import Store
 
-st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide")
+st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="collapsed")
 st.markdown("""<style>
 .block-container{padding-top:3.5rem;padding-bottom:3rem;max-width:1400px}
-/* sidebar */
-section[data-testid="stSidebar"]{background:#0F172A}
-section[data-testid="stSidebar"] *{color:#E2E8F0}
-section[data-testid="stSidebar"] h1{color:#fff;font-size:1.45rem;font-weight:700;padding-bottom:.4rem;border-bottom:2px solid #3B82F6}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{background:#1E293B;border:1px dashed #475569}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] *{color:#E2E8F0}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{color:#0F172A}
-section[data-testid="stSidebar"] [data-testid="stExpander"]{background:#1E293B;border:1px solid #334155;border-radius:8px}
+section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"],div[data-testid="collapsedControl"]{display:none}
+/* header banner */
+.hero{background:linear-gradient(90deg,#1E3A8A,#2563EB);color:#fff;border-radius:12px;padding:.9rem 1.3rem;margin-bottom:1rem}
+.hero h1{margin:0;padding:0;font-size:1.5rem;font-weight:700;color:#fff}
+.hero p{margin:.15rem 0 0;color:#DBEAFE;font-size:.85rem}
+/* blue everywhere (works even if config.toml is missing) */
+span[data-baseweb="tag"]{background-color:#1D4ED8!important}
+span[data-baseweb="tag"] *{color:#fff!important}
+button[kind="primary"],button[data-testid="stBaseButton-primary"]{background-color:#1D4ED8!important;border-color:#1D4ED8!important;color:#fff!important}
 /* tabs */
 button[data-baseweb="tab"]{font-size:1rem;font-weight:600;padding:.6rem 1.1rem}
-button[data-baseweb="tab"][aria-selected="true"]{color:#1D4ED8}
-div[data-baseweb="tab-highlight"]{background:#1D4ED8;height:3px}
+button[data-baseweb="tab"][aria-selected="true"],button[data-baseweb="tab"][aria-selected="true"] p{color:#1D4ED8!important}
+div[data-baseweb="tab-highlight"]{background-color:#1D4ED8!important;height:3px}
 /* KPI cards */
 div[data-testid="stMetric"]{background:#F8FAFC;border:1px solid #E2E8F0;border-left:4px solid #1D4ED8;border-radius:10px;padding:.7rem .9rem;box-shadow:0 1px 2px rgba(15,23,42,.05)}
 div[data-testid="stMetricLabel"] p{color:#64748B;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
@@ -40,6 +42,33 @@ STATUS_CLR = {"OK": "background-color:#DCFCE7;color:#166534;font-weight:600", "R
 
 fmt = lambda v: f"₹{v:,.0f}"
 cr = lambda v: f"₹{v/1e7:,.2f} Cr" if abs(v) >= 1e7 else (f"₹{v/1e5:,.2f} L" if abs(v) >= 1e5 else f"₹{v:,.0f}")
+
+SVC_CLR = {"CCTV": "#1D4ED8", "Biometric": "#0891B2", "Frisking": "#7C3AED", "BAGGAGEMGMT": "#EA580C", "VOIP": "#16A34A", "Overhead %": "#64748B"}
+
+def hbar(series, colors=None, gradient=("#93C5FD", "#1E3A8A")):
+    """Horizontal bar chart with value labels. colors = {name: hex} or None for a blue gradient by value."""
+    df = series.reset_index(); df.columns = ["name", "cost"]; df["label"] = df.cost.map(cr)
+    top = float(df.cost.max()) * 1.3 or 1
+    base = alt.Chart(df).encode(y=alt.Y("name:N", sort="-x", title=None, axis=alt.Axis(labelLimit=220, labelFontSize=12, domain=False, ticks=False)),
+                                x=alt.X("cost:Q", title=None, axis=None, scale=alt.Scale(domain=[0, top])))
+    col = (alt.Color("name:N", legend=None, scale=alt.Scale(domain=list(colors), range=list(colors.values()))) if colors
+           else alt.Color("cost:Q", legend=None, scale=alt.Scale(range=list(gradient))))
+    bars = base.mark_bar(cornerRadiusEnd=5, size=22).encode(color=col, tooltip=[alt.Tooltip("name:N", title=""), alt.Tooltip("cost:Q", title="Cost (₹)", format=",.0f")])
+    txt = base.mark_text(align="left", dx=6, fontSize=12, fontWeight="bold", color="#0F172A").encode(text="label:N")
+    return (bars + txt).properties(height=max(38 * len(df), 80)).configure_view(strokeWidth=0).configure_axis(grid=False)
+
+def rcm_chart(rev, cost, margin):
+    df = pd.DataFrame({"name": ["Revenue", "Cost", "Margin"], "cost": [rev, cost, margin]})
+    return hbar(df.set_index("name").cost, colors={"Revenue": "#1D4ED8", "Cost": "#F59E0B", "Margin": "#16A34A" if margin >= 0 else "#DC2626"})
+
+def pct_clr(x):
+    try: x = float(x)
+    except Exception: return ""
+    return "color:#166534;font-weight:600" if x >= 0.3 else ("color:#92400E;font-weight:600" if x >= 0 else "color:#991B1B;font-weight:600")
+
+def num_clr(x):
+    try: return "color:#166534" if float(x) >= 0 else "color:#991B1B"
+    except Exception: return ""
 
 # ---------------- data & storage ----------------
 @st.cache_data
@@ -70,8 +99,9 @@ def tables():
     return st.session_state.tables["overrides"], st.session_state.tables["settings"]
 
 # ---------------- sidebar ----------------
-with st.sidebar:
-    st.title("Exam Service Planner")
+st.markdown('<div class="hero"><h1>Exam Service Planner</h1><p>Plan services, cost and margin for every exam</p></div>', unsafe_allow_html=True)
+cfg = st.expander("Settings & data source", expanded=False)
+with cfg:
     st.caption("Storage: **Google Sheet**" if store.kind == "gsheet" else "Storage: **local files** (use Google Sheet on Streamlit Cloud, see README)")
     if getattr(store, "error", None): st.warning(store.error)
     if store.kind == "gsheet":
@@ -83,9 +113,10 @@ with st.sidebar:
     add_overhead = st.toggle("Add overhead % of revenue", value=False,
         help=f"Logistics {P['overhead']['logistics_pct']:.0%} + Central/CCR {P['overhead']['central_pct']:.0%} of revenue (from Excel Assumptions). Off by default because logistics/procurement are already items in the catalog.")
     with st.expander("Rates used (from Assumptions)"):
-        st.write("**Revenue**"); st.json(P["revenue"], expanded=False)
-        st.write("**Dimensioning**"); st.json(P["dimensioning"], expanded=False)
-        st.write("**Max scenario units**"); st.json(P["max_units"], expanded=False)
+        r1, r2, r3 = st.columns(3)
+        r1.write("**Revenue**"); r1.json(P["revenue"], expanded=True)
+        r2.write("**Dimensioning**"); r2.json(P["dimensioning"], expanded=True)
+        r3.write("**Max scenario units**"); r3.json(P["max_units"], expanded=True)
 
 exam_source = ""
 try:
@@ -102,7 +133,7 @@ try:
         exams = load_exams(); exam_source = "backup file data/exams.csv"
 except Exception as e:
     st.error(f"Could not read exam list: {e}"); st.stop()
-st.sidebar.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)")
+cfg.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)")
 
 ovr, sett = tables()
 tab_plan, tab_all, tab_cat = st.tabs(["Exam Planner", "All Exams", "Service Catalog"])
@@ -174,9 +205,14 @@ with tab_plan:
             cand = max(e.candidates, 1); cent = max(e.centers, 1)
             k2[0].metric("Cost / candidate", f"₹{S['cost']/cand:,.2f}"); k2[1].metric("Cost / center", fmt(S["cost"] / cent))
             k2[2].metric("Revenue / candidate", f"₹{S['revenue']/cand:,.2f}"); k2[3].metric("Auto revenue", cr(S["auto_revenue"]))
-            a, b = st.columns(2)
-            a.write("**Cost by service**"); a.bar_chart(S["by_service"][S["by_service"] > 0], horizontal=True, color="#1D4ED8")
-            b.write("**Cost by type**"); b.dataframe(S["by_type"][S["by_type"] > 0].rename("Cost (₹)").map(lambda v: f"{v:,.0f}"), width="stretch")
+            a, b, c3 = st.columns(3)
+            a.write("**Revenue vs Cost vs Margin**"); a.altair_chart(rcm_chart(S["revenue"], S["cost"], S["margin"]), width="stretch")
+            bs = S["by_service"][S["by_service"] > 0]
+            b.write("**Cost by service**")
+            if len(bs): b.altair_chart(hbar(bs, SVC_CLR), width="stretch")
+            bt = S["by_type"][S["by_type"] > 0]
+            c3.write("**Cost by type**")
+            if len(bt): c3.altair_chart(hbar(bt), width="stretch")
 
         sv, rs, nt = st.columns([1, 1, 3])
         note = nt.text_input("Note (optional)", value=str(s_row.iloc[0].notes) if len(s_row) else "", key=f"nt_{rid}_{ver}", label_visibility="collapsed", placeholder="Note for this exam (optional)")
@@ -222,7 +258,22 @@ with tab_all:
     m = st.columns(4)
     m[0].metric("Exams", len(v)); m[1].metric("Revenue", cr(v.revenue.sum())); m[2].metric("Cost", cr(v.cost.sum()))
     m[3].metric("Margin %", f"{(v.margin.sum() / v.revenue.sum() if v.revenue.sum() else 0):.1%}")
-    st.dataframe(v.style.map(lambda x: STATUS_CLR.get(x, ""), subset=["status"]), width="stretch", hide_index=True, height=520, column_config={
+    if len(v):
+        g1, g2 = st.columns([1, 2])
+        sc = v.status.value_counts()
+        g1.write("**Exams by status**")
+        g1.altair_chart(alt.Chart(sc.rename_axis("status").reset_index(name="n")).mark_bar(cornerRadiusEnd=5, size=22).encode(
+            y=alt.Y("status:N", sort="-x", title=None), x=alt.X("n:Q", title=None, axis=None),
+            color=alt.Color("status:N", legend=None, scale=alt.Scale(domain=["OK", "Risky", "Negative", "No revenue"], range=["#16A34A", "#F59E0B", "#DC2626", "#94A3B8"])),
+            tooltip=["status", "n"]).properties(height=max(38 * len(sc), 80)).configure_view(strokeWidth=0).configure_axis(grid=False), width="stretch")
+        g2.write("**Top 10 exams by revenue (Revenue vs Cost)**")
+        t10 = v.nlargest(10, "revenue")[["request_id", "revenue", "cost"]].melt("request_id", var_name="kind", value_name="amt")
+        g2.altair_chart(alt.Chart(t10).mark_bar(cornerRadiusEnd=3).encode(
+            x=alt.X("request_id:N", sort=list(v.nlargest(10, "revenue").request_id), title=None, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("amt:Q", title=None, axis=alt.Axis(format="~s")), xOffset="kind:N",
+            color=alt.Color("kind:N", title=None, scale=alt.Scale(domain=["revenue", "cost"], range=["#1D4ED8", "#F59E0B"])),
+            tooltip=["request_id", "kind", alt.Tooltip("amt:Q", format=",.0f")]).properties(height=220).configure_view(strokeWidth=0), width="stretch")
+    st.dataframe(v.style.map(lambda x: STATUS_CLR.get(x, ""), subset=["status"]).map(num_clr, subset=["margin"]).map(pct_clr, subset=["margin_pct"]), width="stretch", hide_index=True, height=520, column_config={
         "exam_date": st.column_config.DateColumn("Date", format="DD-MMM-YY"),
         "revenue": st.column_config.NumberColumn("Revenue (₹)", format="%,d"), "cost": st.column_config.NumberColumn("Cost (₹)", format="%,d"),
         "margin": st.column_config.NumberColumn("Margin (₹)", format="%,d"), "margin_pct": st.column_config.NumberColumn("Margin %", format="percent")})
