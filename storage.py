@@ -25,6 +25,15 @@ class Store:
             self.kind = "local"
         LOCAL.mkdir(parents=True, exist_ok=True)
 
+    def read_tab(self, name):
+        """Read a whole tab as text (first row = headers). Only works when the Google Sheet is connected."""
+        if self.kind != "gsheet":
+            raise RuntimeError("Google Sheet is not connected")
+        vals = self._sh.worksheet(name).get_all_values()
+        if len(vals) < 2:
+            return pd.DataFrame(columns=vals[0] if vals else [])
+        return pd.DataFrame(vals[1:], columns=vals[0])
+
     # -- helpers
     def _ws(self, name, cols):
         import gspread
