@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import altair as alt
 import streamlit as st
-from planner_core import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, load_params, load_exams,
+from planner_core import (CAT_SERVICES, ALL_SERVICES, SCALES, OVR_COLS, SET_COLS, load_catalog, normalize_catalog, load_params, load_exams,
                   clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items, compute_all, data_checks)
 from storage import Store
 
@@ -85,7 +85,22 @@ def _store():
         sec = None
     return Store(sec)
 
-catalog, P, store = _catalog(), _params(), _store()
+P, store = _params(), _store()
+
+CAT_TAB = "Catalog"    # tab name in the Google Sheet that holds the catalog (Service, Type, Item, Quantity, Rates, Total, Per Candidate, ...)
+
+@st.cache_data(ttl=300, show_spinner="Reading Catalog from Google Sheet...")
+def _catalog_from_sheet(_store, tab):
+    return normalize_catalog(_store.read_tab(tab))
+
+catalog, cat_source = None, ""
+if store.kind == "gsheet":
+    try:
+        catalog = _catalog_from_sheet(store, CAT_TAB).copy(); cat_source = f"Google Sheet, tab '{CAT_TAB}'"
+    except Exception as e:
+        st.warning(f"Could not read tab '{CAT_TAB}' from the Google Sheet ({e}). Using data/catalog.csv instead.")
+if catalog is None:
+    catalog, cat_source = _catalog(), "backup file data/catalog.csv"
 
 RAW_TAB = "Raw Data"   # tab name in the Google Sheet that holds the exam list
 
@@ -116,7 +131,7 @@ with cfg:
         r1, r2, r3 = st.columns(3)
         r1.write("**Revenue**"); r1.json(P["revenue"], expanded=True)
         r2.write("**Dimensioning**"); r2.json(P["dimensioning"], expanded=True)
-        r3.write("**Cost per day (₹)**"); r3.json({**P["rates_per_day"], "voip_per_center": P["voip_cost_per_center_day"]}, expanded=True)
+        r3.write("**VOIP cost / center / day (₹)**"); r3.json({"voip": P["voip_cost_per_center_day"]}, expanded=True)
 
 exam_source = ""
 try:
@@ -133,7 +148,7 @@ try:
         exams = load_exams(); exam_source = "backup file data/exams.csv"
 except Exception as e:
     st.error(f"Could not read exam list: {e}"); st.stop()
-cfg.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)")
+cfg.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)  |  Catalog: **{cat_source}** ({len(catalog)} items)")
 
 ovr, sett = tables()
 tab_plan, tab_all, tab_cat = st.tabs(["Exam Planner", "All Exams", "Service Catalog"])
@@ -166,7 +181,7 @@ with tab_plan:
 
         result_box = st.container()
         st.subheader("What we give")
-        st.caption("Tick/untick Include, or change Qty / Rate for this exam only. Camera / Operator / Guard rows are calculated (units x days x cost per day). All other rows are manual: enter the Qty.")
+        st.caption("Tick/untick Include, or change Qty / Rate for this exam only. Qty comes from the Catalog columns (Quantity, Per Candidate, Per Camera/OP/Guard, Per Center). Rows with nothing filled are manual: enter the Qty.")
         edited = []
         for svc in [s for s in CAT_SERVICES if s in services]:
             sub = items[items.service == svc]
@@ -284,7 +299,6 @@ with tab_all:
 
 # ---------------- Catalog ----------------
 with tab_cat:
-    st.caption("Default rates (data/catalog.csv). Camera / Operator / Guard rows use the per-day cost from Assumptions; every other item is entered manually per exam.")
+    st.caption(f"Catalog source: {cat_source}. Edit it in the Google Sheet tab '{CAT_TAB}', then press 'Refresh' in Settings.")
     fs = st.multiselect("Service", CAT_SERVICES, default=CAT_SERVICES, key="catsvc")
-    st.dataframe(catalog[catalog.service.isin(fs)][["service", "type", "item", "rate"]], width="stretch", hide_index=True, height=560,
-                 column_config={"rate": st.column_config.NumberColumn("Default rate (₹)", format="%,.0f")})
+    st.dataframe(catalog[catalog.service.isin(fs)], width="stretch", hide_index=True, height=560)
