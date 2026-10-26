@@ -7,9 +7,36 @@ from storage import Store
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide")
 st.markdown("""<style>
-.block-container{padding-top:1.5rem;max-width:1400px}
-div[data-testid="stMetricValue"]{font-size:1.5rem}
+.block-container{padding-top:3.5rem;padding-bottom:3rem;max-width:1400px}
+/* sidebar */
+section[data-testid="stSidebar"]{background:#0F172A}
+section[data-testid="stSidebar"] *{color:#E2E8F0}
+section[data-testid="stSidebar"] h1{color:#fff;font-size:1.45rem;font-weight:700;padding-bottom:.4rem;border-bottom:2px solid #3B82F6}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{background:#1E293B;border:1px dashed #475569}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] *{color:#E2E8F0}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{color:#0F172A}
+section[data-testid="stSidebar"] [data-testid="stExpander"]{background:#1E293B;border:1px solid #334155;border-radius:8px}
+/* tabs */
+button[data-baseweb="tab"]{font-size:1rem;font-weight:600;padding:.6rem 1.1rem}
+button[data-baseweb="tab"][aria-selected="true"]{color:#1D4ED8}
+div[data-baseweb="tab-highlight"]{background:#1D4ED8;height:3px}
+/* KPI cards */
+div[data-testid="stMetric"]{background:#F8FAFC;border:1px solid #E2E8F0;border-left:4px solid #1D4ED8;border-radius:10px;padding:.7rem .9rem;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+div[data-testid="stMetricLabel"] p{color:#64748B;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+div[data-testid="stMetricValue"]{font-size:1.45rem;font-weight:700;color:#0F172A}
+/* headings & blocks */
+h2,h3{color:#0F172A;font-weight:700}
+div[data-testid="stExpander"]{border:1px solid #E2E8F0;border-radius:10px}
+div[data-testid="stExpander"] summary p{font-weight:600}
+div[data-testid="stDataFrame"]{border:1px solid #E2E8F0;border-radius:10px}
+.badge{display:inline-block;padding:.35rem .9rem;border-radius:999px;font-weight:700;font-size:1.05rem}
+.b-OK{background:#DCFCE7;color:#166534}.b-Risky{background:#FEF3C7;color:#92400E}
+.b-Negative{background:#FEE2E2;color:#991B1B}.b-Norevenue{background:#E2E8F0;color:#475569}
+.stat-lab{color:#64748B;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.3rem}
 </style>""", unsafe_allow_html=True)
+
+STATUS_CLR = {"OK": "background-color:#DCFCE7;color:#166534;font-weight:600", "Risky": "background-color:#FEF3C7;color:#92400E;font-weight:600",
+              "Negative": "background-color:#FEE2E2;color:#991B1B;font-weight:600", "No revenue": "background-color:#E2E8F0;color:#475569;font-weight:600"}
 
 fmt = lambda v: f"₹{v:,.0f}"
 cr = lambda v: f"₹{v/1e7:,.2f} Cr" if abs(v) >= 1e7 else (f"₹{v/1e5:,.2f} L" if abs(v) >= 1e5 else f"₹{v:,.0f}")
@@ -85,7 +112,7 @@ with tab_plan:
     exams["label"] = exams.request_id + " | " + exams.exam_name.str[:60] + " | " + exams.exam_date.dt.strftime("%d-%b-%y").fillna("no date")
     pick = st.selectbox("Select exam", exams.label, index=None, placeholder="Type Request ID or exam name...")
     if pick is None:
-        st.info("Pick an exam to see and change what we are giving in it.")
+        st.info("Pick an exam above to see and change what we are giving in it.", icon=":material/arrow_upward:")
     else:
         e = exams[exams.label == pick].iloc[0]; rid = e.request_id
         s_row = sett[sett.request_id == rid]
@@ -142,13 +169,13 @@ with tab_plan:
             k = st.columns(5)
             k[0].metric("Revenue", cr(S["revenue"])); k[1].metric("Cost", cr(S["cost"]))
             k[2].metric("Margin", cr(S["margin"])); k[3].metric("Margin %", f"{S['margin_pct']:.1%}")
-            k[4].metric("Status", S["status"])
+            k[4].markdown(f'<div class="stat-lab">Status</div><span class="badge b-{S["status"].replace(" ", "")}">{S["status"]}</span>', unsafe_allow_html=True)
             k2 = st.columns(4)
             cand = max(e.candidates, 1); cent = max(e.centers, 1)
             k2[0].metric("Cost / candidate", f"₹{S['cost']/cand:,.2f}"); k2[1].metric("Cost / center", fmt(S["cost"] / cent))
             k2[2].metric("Revenue / candidate", f"₹{S['revenue']/cand:,.2f}"); k2[3].metric("Auto revenue", cr(S["auto_revenue"]))
             a, b = st.columns(2)
-            a.write("**Cost by service**"); a.bar_chart(S["by_service"][S["by_service"] > 0], horizontal=True)
+            a.write("**Cost by service**"); a.bar_chart(S["by_service"][S["by_service"] > 0], horizontal=True, color="#1D4ED8")
             b.write("**Cost by type**"); b.dataframe(S["by_type"][S["by_type"] > 0].rename("Cost (₹)").map(lambda v: f"{v:,.0f}"), width="stretch")
 
         sv, rs, nt = st.columns([1, 1, 3])
@@ -195,7 +222,7 @@ with tab_all:
     m = st.columns(4)
     m[0].metric("Exams", len(v)); m[1].metric("Revenue", cr(v.revenue.sum())); m[2].metric("Cost", cr(v.cost.sum()))
     m[3].metric("Margin %", f"{(v.margin.sum() / v.revenue.sum() if v.revenue.sum() else 0):.1%}")
-    st.dataframe(v, width="stretch", hide_index=True, height=520, column_config={
+    st.dataframe(v.style.map(lambda x: STATUS_CLR.get(x, ""), subset=["status"]), width="stretch", hide_index=True, height=520, column_config={
         "exam_date": st.column_config.DateColumn("Date", format="DD-MMM-YY"),
         "revenue": st.column_config.NumberColumn("Revenue (₹)", format="%,d"), "cost": st.column_config.NumberColumn("Cost (₹)", format="%,d"),
         "margin": st.column_config.NumberColumn("Margin (₹)", format="%,d"), "margin_pct": st.column_config.NumberColumn("Margin %", format="percent")})
