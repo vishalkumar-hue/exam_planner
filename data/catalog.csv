@@ -1,74 +1,74 @@
-service,type,item,qty,rate,total,scales_with
-CCTV,Operations,Camera Day-1,25639,1350,34612650,Cameras
-CCTV,Operations,Camera 30th Oct,25639,60,1538340,Cameras
-CCTV,Operations,Camera_Manpower,1123,0,0,Centers
-CCTV,Operations,Internet,1123,3500,3930500,Centers
-CCTV,Operations,UPS,2300,500,1150000,Candidates
-CCTV,Operations,Monitor,2300,700,1610000,Candidates
-CCTV,Tech,VMS_License,0,500,0,Candidates
-CCTV,Tech,VMS_Use,2883366,1,2883366,Candidates
-CCTV,Others,CCR,1,700000,700000,Candidates
-CCTV,Others,Backend,749,800,598933,Candidates
-CCTV,Others,DR,50,12000,600000,Candidates
-CCTV,Others,CCR - Proctor,160,700,112000,Candidates
-CCTV,Others,CCT - AI,0,550000,0,Candidates
-CCTV,Others,Other Vendor Payment,1,200000,200000,Candidates
-CCTV,Others,Misc,1,200000,200000,Candidates
-CCTV,Procurement-Consumable,2TB HDD,1123,300,336900,Centers
-CCTV,Procurement-Consumable,4TB HDD,225,10000,2250000,Candidates
-CCTV,Operations,District Office Manpower for TV,85,0,0,Candidates
-CCTV,Operations,"District CCR TV Installation, Uninstallation, Internet, Reverse Logistics & Packaging (4TV each District)",50,12000,600000,Candidates
-CCTV,Logistics,Logistics,1,300000,300000,Candidates
-Biometric,Operations,Manpower,30219,800,24175200,Operators
-Biometric,Operations,Mock,1123,500,561500,Centers
-Biometric,Operations,Training,10073,100,1007300,Candidates
-Biometric,Procurement-Stock,Tablet,0,6440,0,Candidates
-Biometric,Operations,Tablet,12202,200,2440400,Candidates
-Biometric,Procurement-Consumable,Bar code,0,0,0,Candidates
-Biometric,Logistics,Logistics,12202,200,2440400,Candidates
-Biometric,Logistics,Warehouse Mapower,1,300000,300000,Candidates
-Biometric,Logistics,Warehouse Operations,1,200000,200000,Candidates
-Biometric,Operations,FPS,1123,200,224600,Centers
-Biometric,Operations,IRIS,12202,200,2440400,Candidates
-Biometric,Operations,Backend,749,800,598933,Candidates
-Biometric,Procurement-Consumable,ID Card,11196,3,30229,Candidates
-Biometric,Operations,Jacket,10073,50,503650,Candidates
-Biometric,Operations,OTG,24404,10,244040,Candidates
-Biometric,Operations,Hologram,30523,3,99200,Candidates
-Biometric,Operations,IRIS License,0,100,0,Candidates
-Biometric,Operations,Jio IoT Sims,0,149,0,Candidates
-Biometric,Operations,Airtel IoT Sims,0,99,0,Candidates
-Biometric,Procurement-Misc,Procurement-Misc,1,500000,500000,Candidates
-Biometric,Operations-Misc,Operations-Misc,1,500000,500000,Candidates
-Frisking,Operations,Guards,17936,1200,21523200,Guards
-Frisking,Operations,Mock,1123,200,224600,Centers
-Frisking,Operations,Training,0,0,0,Candidates
-Frisking,Operations,Encloser,1123,100,112300,Centers
-Frisking,Operations,Crowd Managers,0,1500,0,Candidates
-Frisking,Operations,HHMD,19059,0,0,Candidates
-Frisking,Others,Backend,750,800,600000,Candidates
-Frisking,Procurement-Stock,INVW Jackets,0,125,0,Candidates
-Frisking,Logistics,Logistics Rev Pickup City to Center,1123,500,561500,Centers
-Frisking,Logistics,Logistics Rev Pickup Center to City,1123,500,561500,Centers
-Frisking,Logistics,Logistics Rev for delhi,1123,400,449200,Centers
-Frisking,Logistics,Logistics Forward from delhi,1123,400,449200,Centers
-Frisking,Logistics,Warehouse Mapower,1,200000,200000,Candidates
-Frisking,Logistics,Warehouse Operations,0,200000,0,Candidates
-Frisking,Procurement-Consumable,Id Cards,19059,1,19059,Candidates
-Frisking,Procurement-Consumable,Id Cards Pouch,1123,1,1123,Centers
-Frisking,Procurement-Consumable,Lanyards,1123,1,1067,Centers
-Frisking,Procurement-Misc,Procurement-Misc,1,500000,500000,Candidates
-Frisking,Operations-Misc,Operations-Misc,1,500000,500000,Candidates
-BAGGAGEMGMT,Operations,Guards,6792,1200,8150400,Guards
-BAGGAGEMGMT,Operations,Mock,1123,0,0,Centers
-BAGGAGEMGMT,Operations,Training,0,0,0,Candidates
-BAGGAGEMGMT,Operations,Encloser,1123,0,0,Centers
-BAGGAGEMGMT,Procurement-Consumable,Id Cards,9434,1,9434,Candidates
-BAGGAGEMGMT,Procurement-Consumable,Id Cards Pouch,9434,1,9434,Candidates
-BAGGAGEMGMT,Procurement-Consumable,Lanyards,9434,1,8962,Candidates
-BAGGAGEMGMT,Procurement-Consumable,"8x8"" courier polythene",28834,150,4325100,Candidates
-BAGGAGEMGMT,Procurement-Consumable,Marker,2250,6,13500,Candidates
-BAGGAGEMGMT,Procurement-Consumable,Sticker Label A4 White,2750,160,440000,Candidates
-BAGGAGEMGMT,Procurement-Consumable,Banner,1123,80,89840,Centers
-BAGGAGEMGMT,Procurement-Misc,Procurement-Misc,1,500000,500000,Candidates
-BAGGAGEMGMT,Operations-Misc,Operations-Misc,1,500000,500000,Candidates
+Service,Type,Item,Quantity,Rates,Total,Per Candidate,Per Camera/OP/Guard,Per Center,RMK,Logic
+CCTV,Operations,Camera Day-1,,,,,,,,
+CCTV,Operations,Camera 30th Oct,,,,,,,,
+CCTV,Operations,Camera_Manpower,,,,,,,,
+CCTV,Operations,Internet,,,,,,,,
+CCTV,Operations,UPS,,,,,,,,
+CCTV,Operations,Monitor,,,,,,,,
+CCTV,Tech,VMS_License,,,,,,,,
+CCTV,Tech,VMS_Use,,,,,,,,
+CCTV,Others,CCR,,,,,,,,
+CCTV,Others,Backend,,,,,,,,
+CCTV,Others,DR,,,,,,,,
+CCTV,Others,CCR - Proctor,,,,,,,,
+CCTV,Others,CCT - AI,,,,,,,,
+CCTV,Others,Other Vendor Payment,,,,,,,,
+CCTV,Others,Misc,,,,,,,,
+CCTV,Procurement-Consumable,2TB HDD,,,,,,,,
+CCTV,Procurement-Consumable,4TB HDD,,,,,,,,
+CCTV,Operations,District Office Manpower for TV,,,,,,,,
+CCTV,Operations,"District CCR TV Installation, Uninstallation, Internet, Reverse Logistics & Packaging (4TV each District)",,,,,,,,
+CCTV,Logistics,Logistics,,,,,,,,
+Biometric,Operations,Manpower,,,,,,,,
+Biometric,Operations,Mock,,,,,,,,
+Biometric,Operations,Training,,,,,,,,
+Biometric,Procurement-Stock,Tablet,,,,,,,,
+Biometric,Operations,Tablet,,,,,,,,
+Biometric,Procurement-Consumable,Bar code,,,,,,,,
+Biometric,Logistics,Logistics,,,,,,,,
+Biometric,Logistics,Warehouse Mapower,,,,,,,,
+Biometric,Logistics,Warehouse Operations,,,,,,,,
+Biometric,Operations,FPS,,,,,,,,
+Biometric,Operations,IRIS,,,,,,,,
+Biometric,Operations,Backend,,,,,,,,
+Biometric,Procurement-Consumable,ID Card,,,,,,,,
+Biometric,Operations,Jacket,,,,,,,,
+Biometric,Operations,OTG,,,,,,,,
+Biometric,Operations,Hologram,,,,,,,,
+Biometric,Operations,IRIS License,,,,,,,,
+Biometric,Operations,Jio IoT Sims,,,,,,,,
+Biometric,Operations,Airtel IoT Sims,,,,,,,,
+Biometric,Procurement-Misc,Procurement-Misc,,,,,,,,
+Biometric,Operations-Misc,Operations-Misc,,,,,,,,
+Frisking,Operations,Guards,,,,,,,,
+Frisking,Operations,Mock,,,,,,,,
+Frisking,Operations,Training,,,,,,,,
+Frisking,Operations,Encloser,,,,,,,,
+Frisking,Operations,Crowd Managers,,,,,,,,
+Frisking,Operations,HHMD,,,,,,,,
+Frisking,Others,Backend,,,,,,,,
+Frisking,Procurement-Stock,INVW Jackets,,,,,,,,
+Frisking,Logistics,Logistics Rev Pickup City to Center,,,,,,,,
+Frisking,Logistics,Logistics Rev Pickup Center to City,,,,,,,,
+Frisking,Logistics,Logistics Rev for delhi,,,,,,,,
+Frisking,Logistics,Logistics Forward from delhi,,,,,,,,
+Frisking,Logistics,Warehouse Mapower,,,,,,,,
+Frisking,Logistics,Warehouse Operations,,,,,,,,
+Frisking,Procurement-Consumable,Id Cards,,,,,,,,
+Frisking,Procurement-Consumable,Id Cards Pouch,,,,,,,,
+Frisking,Procurement-Consumable,Lanyards,,,,,,,,
+Frisking,Procurement-Misc,Procurement-Misc,,,,,,,,
+Frisking,Operations-Misc,Operations-Misc,,,,,,,,
+BAGGAGEMGMT,Operations,Guards,,,,,,,,
+BAGGAGEMGMT,Operations,Mock,,,,,,,,
+BAGGAGEMGMT,Operations,Training,,,,,,,,
+BAGGAGEMGMT,Operations,Encloser,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Id Cards,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Id Cards Pouch,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Lanyards,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,"8x8"" courier polythene",,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Marker,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Sticker Label A4 White,,,,,,,,
+BAGGAGEMGMT,Procurement-Consumable,Banner,,,,,,,,
+BAGGAGEMGMT,Procurement-Misc,Procurement-Misc,,,,,,,,
+BAGGAGEMGMT,Operations-Misc,Operations-Misc,,,,,,,,
