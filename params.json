@@ -1,0 +1,33 @@
+{
+  "max_units": {
+    "cand": 2883366,
+    "cent": 1123,
+    "cam": 25639,
+    "op": 30219,
+    "fg": 17936,
+    "bg": 6792
+  },
+  "dimensioning": {
+    "cand_per_camera": 24,
+    "extra_cam_per_center": 3,
+    "cand_per_operator": 70,
+    "min_op_per_center": 1,
+    "guards_per_center": 4,
+    "baggage_guards_per_center": 6
+  },
+  "revenue": {
+    "CCTV_per_cand": 35,
+    "Biometric_per_cand": 28,
+    "Frisking_per_cand": 18,
+    "BAGGAGEMGMT_per_cand": 0,
+    "VOIP_per_center_day": 1100
+  },
+  "voip_cost_per_center_day": 400,
+  "overhead": {
+    "logistics_pct": 0.08,
+    "central_pct": 0.1
+  },
+  "margin_slabs": {
+    "risky_below": 0.3
+  }
+}
