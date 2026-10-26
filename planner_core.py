@@ -99,33 +99,36 @@ def exam_units(cand, cent, P, shifts=1, days=1):
     cand, cent = float(cand), float(cent)
     slot = cand / (max(float(shifts), 1) * max(float(days), 1))
     cam = math.ceil(slot / d["cand_per_camera"]) + d["extra_cam_per_center"] * cent if cand > 0 else 0
-    op = max(cent * d["min_op_per_center"], math.ceil(slot / d["cand_per_operator"])) if cand > 0 else 0
+    cpo = d.get("cand_per_operator")          # blank in Assumptions -> operators stay manual (0)
+    op = max(cent * d["min_op_per_center"], math.ceil(slot / cpo)) if (cand > 0 and cpo) else 0
     fg = max(cent, 1) * d["guards_per_center"] if cand > 0 else 0
-    bg = math.ceil(cent * d["baggage_guards_per_center"]) if cand > 0 else 0
-    return {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": bg}
+    return {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": 0}
 
 
-def _factor(scales_with, service, units, mx):
-    if scales_with == "Fixed":
-        return 1.0
-    key = {"Candidates": "cand", "Centers": "cent", "Cameras": "cam", "Operators": "op"}.get(scales_with)
-    if scales_with == "Guards":
-        key = "bg" if service == "BAGGAGEMGMT" else "fg"
-    if key is None or not mx.get(key):
-        return 0.0
-    return float(units[key]) / float(mx[key])
+# Only these catalog rows are calculated (from the Assumptions: dimensioning x days x cost-per-day).
+# Every other item is MANUAL: Qty starts at 0, rate = catalog rate, user types the Qty.
+CALC = {("CCTV", "Camera (per day)"): ("cam", "camera"),
+        ("Biometric", "Operator (per day)"): ("op", "operator"),
+        ("Frisking", "Guard (per day)"): ("fg", "guard")}
 
 
 def build_items(exam, services, saved_ovr, catalog, P):
     """All catalog items for one exam with defaults + saved overrides applied."""
     units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"])
-    mx = P["max_units"]
+    days = max(float(exam["days"]), 1)
     df = catalog.copy()
-    df["factor"] = [_factor(s, sv, units, mx) for s, sv in zip(df.scales_with, df.service)]
-    df["def_qty"] = (df.qty * df.factor).round(2)
-    df["def_rate"] = df.rate.astype(float)
-    df["def_cost"] = df.total * df.factor
-    df["def_include"] = ((df.total > 0) & df.service.isin(services)).astype(int)
+    qty, rate, basis = [], [], []
+    for sv, it, r in zip(df.service, df["item"], df.rate.astype(float)):
+        c = CALC.get((sv, it))
+        if c and (units[c[0]] > 0):
+            qty.append(round(units[c[0]] * days, 2)); rate.append(float(P["rates_per_day"][c[1]])); basis.append(f"Auto: {c[0]} x days")
+        else:
+            qty.append(0.0); rate.append(r); basis.append("Manual")
+    df["def_qty"] = qty
+    df["def_rate"] = rate
+    df["basis"] = basis
+    df["def_cost"] = df.def_qty * df.def_rate
+    df["def_include"] = df.service.isin(services).astype(int)
     df["include"] = df.def_include
     df["qty_in"] = df.def_qty
     df["rate_in"] = df.def_rate
