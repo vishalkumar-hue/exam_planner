@@ -8,7 +8,7 @@ from storage import Store
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="collapsed")
 st.markdown("""<style>
-.block-container{padding-top:3.5rem;padding-bottom:3rem;max-width:1400px}
+.block-container{padding-top:3.5rem;padding-bottom:3rem;padding-left:2rem;padding-right:2rem;max-width:100%!important}
 section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"],div[data-testid="collapsedControl"]{display:none}
 /* header banner */
 .hero{background:linear-gradient(90deg,#1E3A8A,#2563EB);color:#fff;border-radius:12px;padding:.9rem 1.3rem;margin-bottom:1rem}
