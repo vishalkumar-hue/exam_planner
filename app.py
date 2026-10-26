@@ -116,7 +116,7 @@ with cfg:
         r1, r2, r3 = st.columns(3)
         r1.write("**Revenue**"); r1.json(P["revenue"], expanded=True)
         r2.write("**Dimensioning**"); r2.json(P["dimensioning"], expanded=True)
-        r3.write("**Max scenario units**"); r3.json(P["max_units"], expanded=True)
+        r3.write("**Cost per day (₹)**"); r3.json({**P["rates_per_day"], "voip_per_center": P["voip_cost_per_center_day"]}, expanded=True)
 
 exam_source = ""
 try:
@@ -160,25 +160,25 @@ with tab_plan:
 
         items, units = build_items(e, services, ovr[ovr.request_id == rid], catalog, P)
         c = st.columns(8)
-        for col, (lab, val) in zip(c, [("Candidates", e.candidates), ("Centers", e.centers), ("Days", e.days), ("Shifts/day", e.shifts),
-                                       ("Cameras", units["cam"]), ("Operators", units["op"]), ("Frisk guards", units["fg"]), ("Baggage guards", units["bg"])]):
+        for col, (lab, val) in zip(c, [("Candidates", e.candidates), ("Centers", e.centers), ("Shifts/day", e.shifts), ("Slot size", units["cand"] / max(e.shifts,1) / max(e.days,1)),
+                                       ("Cameras", units["cam"]), ("Operators", units["op"]), ("Frisk guards", units["fg"]), ("Days", e.days)]):
             col.metric(lab, f"{val:,.0f}")
 
         result_box = st.container()
         st.subheader("What we give")
-        st.caption("Tick/untick Include, or change Qty / Rate for this exam only. Qty defaults to the max-scenario quantity scaled to this exam's size.")
+        st.caption("Tick/untick Include, or change Qty / Rate for this exam only. Camera / Operator / Guard rows are calculated (units x days x cost per day). All other rows are manual: enter the Qty.")
         edited = []
         for svc in [s for s in CAT_SERVICES if s in services]:
             sub = items[items.service == svc]
             with st.expander(f"{svc}  -  {cr(sub.cost.sum())}  ({int(sub.include.sum())} items)", expanded=True):
-                view = sub[["include", "item", "type", "scales_with", "qty_in", "rate_in", "cost"]].copy()
+                view = sub[["include", "item", "type", "basis", "qty_in", "rate_in", "cost"]].copy()
                 view["include"] = view.include.astype(bool)
                 out = st.data_editor(
                     view, key=f"ed_{rid}_{svc}_{ver}", hide_index=True, width="stretch", height=min(35 * len(view) + 40, 520),
                     column_config={"include": st.column_config.CheckboxColumn("Include", width="small"),
                                    "item": st.column_config.TextColumn("Item", disabled=True),
                                    "type": st.column_config.TextColumn("Type", disabled=True),
-                                   "scales_with": st.column_config.TextColumn("Scales with", disabled=True, width="small"),
+                                   "basis": st.column_config.TextColumn("Basis", disabled=True, width="small"),
                                    "qty_in": st.column_config.NumberColumn("Qty", format="%.2f", min_value=0),
                                    "rate_in": st.column_config.NumberColumn("Rate (₹)", format="%.2f", min_value=0),
                                    "cost": st.column_config.NumberColumn("Cost (₹)", format="%,.0f", disabled=True)})
@@ -284,9 +284,7 @@ with tab_all:
 
 # ---------------- Catalog ----------------
 with tab_cat:
-    st.caption("Max-scenario services and rates (data/catalog.csv). 'Scales with' says which exam size drives the quantity: an exam with half the candidates pays half of a Candidate-scaled item.")
+    st.caption("Default rates (data/catalog.csv). Camera / Operator / Guard rows use the per-day cost from Assumptions; every other item is entered manually per exam.")
     fs = st.multiselect("Service", CAT_SERVICES, default=CAT_SERVICES, key="catsvc")
-    cv = catalog[catalog.service.isin(fs)].rename(columns={"qty": "max_qty", "rate": "rate", "total": "max_total"})
-    st.dataframe(cv, width="stretch", hide_index=True, height=560,
-                 column_config={"max_qty": st.column_config.NumberColumn(format="%,d"), "rate": st.column_config.NumberColumn(format="%,d"), "max_total": st.column_config.NumberColumn(format="%,d")})
-    st.write("Total at max scenario:", fmt(catalog.total.sum()))
+    st.dataframe(catalog[catalog.service.isin(fs)][["service", "type", "item", "rate"]], width="stretch", hide_index=True, height=560,
+                 column_config={"rate": st.column_config.NumberColumn("Default rate (₹)", format="%,.0f")})
