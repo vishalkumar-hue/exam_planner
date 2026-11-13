@@ -298,9 +298,12 @@ with tab_all:
         "exam_date": st.column_config.DateColumn("Date", format="DD-MMM-YY"),
         "revenue": st.column_config.NumberColumn("Revenue (₹)", format="%,d"), "cost": st.column_config.NumberColumn("Cost (₹)", format="%,d"),
         "margin": st.column_config.NumberColumn("Margin (₹)", format="%,d"), "margin_pct": st.column_config.NumberColumn("Margin %", format="percent")})
-    buf = io.BytesIO(); v.to_excel(buf, index=False, sheet_name="Exams")
     d1, d2 = st.columns(2)
-    d1.download_button("Download Excel", buf.getvalue(), "exam_projection.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    try:
+        buf = io.BytesIO(); v.to_excel(buf, index=False, sheet_name="Exams")
+        d1.download_button("Download Excel", buf.getvalue(), "exam_projection.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception:     # openpyxl missing on the server -> give CSV instead of crashing
+        d1.download_button("Download CSV (Excel not available)", v.to_csv(index=False), "exam_projection.csv", "text/csv")
     d2.download_button("Download saved overrides (CSV)", ovr.to_csv(index=False), "exam_service_overrides.csv", "text/csv")
 
 # ---------------- Catalog ----------------
