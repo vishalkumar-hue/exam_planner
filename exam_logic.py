@@ -8,9 +8,13 @@ DATA = Path(__file__).parent / "data"
 LOCAL = DATA / "saved"
 CAT_SERVICES = ["CCTV", "Biometric", "Frisking", "BAGGAGEMGMT"]
 ALL_SERVICES = CAT_SERVICES + ["VOIP"]
-RAW_TO_SERVICE = {"CCTV": "CCTV", "BIO": "Biometric", "FRI": "Frisking", "VOIP": "VOIP"}
+RAW_TO_SERVICE = {"CCTV": "CCTV", "BIO": "Biometric", "BIOMETRIC": "Biometric", "FRI": "Frisking", "FRISK": "Frisking", "FRISKING": "Frisking",
+                  "VOIP": "VOIP", "BAG": "BAGGAGEMGMT", "BAGGAGE": "BAGGAGEMGMT", "BAGGAGEMGMT": "BAGGAGEMGMT", "BM": "BAGGAGEMGMT"}
 OVR_COLS = ["request_id", "service", "type", "item", "include", "qty", "rate"]
-SET_COLS = ["request_id", "services", "rev_override", "notes"]
+SET_COLS = ["request_id", "services", "rev_override", "notes", "candidates", "centers", "shifts", "days", "cameras", "operators", "guards", "bag_guards"]
+# manual-input columns in the settings table -> exam field / unit key (blank = automatic from Raw Data)
+MAN_INPUTS = {"candidates": "candidates", "centers": "centers", "shifts": "shifts", "days": "days"}
+MAN_UNITS = {"cameras": "cam", "operators": "op", "guards": "fg", "bag_guards": "bg"}
 TABLES = {"overrides": ("Exam_Service_Overrides", OVR_COLS), "settings": ("Exam_Settings", SET_COLS)}
 
 CAT_HEADERS = {"service": "service", "type": "type", "item": "item", "quantity": "qty_fixed", "rates": "rate", "rate": "rate",
@@ -25,7 +29,7 @@ DEFAULT_PARAMS = {
   "dimensioning": {
     "cand_per_camera": 24,
     "extra_cam_per_center": 3,
-    "cand_per_operator": None,
+    "cand_per_operator": 70,
     "min_op_per_center": 1,
     "guards_per_center": 4
   },
@@ -306,23 +310,58 @@ def data_checks(exams):
 
 
 # ======================= CALCULATIONS =======================
-def exam_units(cand, cent, P, shifts=1, days=1):
-    """Equipment/manpower needed at one time = per shift-slot (same logic as the Excel Projection Report)."""
+def exam_units(cand, cent, P, shifts=1, days=1, manual=None):
+    """Equipment/manpower needed at one time = per shift-slot (same logic as the Excel Projection Report).
+    manual = {"cam":.., "op":.., "fg":.., "bg":..} replaces the automatic number for that unit."""
     d = P["dimensioning"]
     cand, cent = float(cand), float(cent)
     slot = cand / (max(float(shifts), 1) * max(float(days), 1))
     cam = math.ceil(slot / d["cand_per_camera"]) + d["extra_cam_per_center"] * cent if cand > 0 else 0
-    cpo = d.get("cand_per_operator")          # blank in Assumptions -> operators stay manual (0)
+    cpo = d.get("cand_per_operator") or 70     # Excel Assumptions: 1 operator per 70 candidates
     op = max(cent * d["min_op_per_center"], math.ceil(slot / cpo)) if (cand > 0 and cpo) else 0
     fg = max(cent, 1) * d["guards_per_center"] if cand > 0 else 0
     bg = math.ceil(cent * d["baggage_guards_per_center"]) if (cand > 0 and d.get("baggage_guards_per_center")) else 0
-    return {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": bg}
+    u = {"cand": cand, "cent": cent, "cam": cam, "op": op, "fg": fg, "bg": bg}
+    u.update(manual or {})
+    return u
+
+
+def manual_units(exam):
+    """Manual cameras / operators / guards typed for this exam (NaN or missing = automatic)."""
+    out = {}
+    for k in ("cam", "op", "fg", "bg"):
+        v = exam.get(f"man_{k}")
+        if v is not None and v == v:
+            out[k] = float(v)
+    return out
+
+
+def _num(v):
+    try:
+        if v is None or str(v).strip() in ("", "nan", "None"):
+            return None
+        return float(v)
+    except Exception:
+        return None
+
+
+def effective_exam(exam, srow=None):
+    """Raw Data row + this exam's manual overrides (from the settings table). Blank = automatic from Raw Data."""
+    e = exam.copy()
+    for col, fld in MAN_INPUTS.items():
+        v = _num(srow.get(col)) if srow is not None else None
+        if v is not None and v >= 0:
+            e[fld] = max(v, 1) if fld in ("shifts", "days") else v
+    for col, k in MAN_UNITS.items():
+        v = _num(srow.get(col)) if srow is not None else None
+        e[f"man_{k}"] = v if (v is not None and v >= 0) else np.nan
+    return e
 
 
 def build_items(exam, services, saved_ovr, catalog, P):
     """All catalog items for one exam with defaults + saved overrides applied.
     Qty = Quantity + PerCandidate x candidates + PerCamera/OP/Guard x units + PerCenter x centers   (x days if Logic says so)."""
-    units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"])
+    units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"], manual_units(exam))
     days = max(float(exam["days"]), 1)
     df = catalog.copy()
     qty, basis = [], []
@@ -369,7 +408,7 @@ def finalize_items(df):
 
 
 def summarize(items, exam, services, rev_override, P, add_overhead=False):
-    units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"])
+    units = exam_units(exam["candidates"], exam["centers"], P, exam["shifts"], exam["days"], manual_units(exam))
     R = P["revenue"]
     cand, cent, days = float(exam["candidates"]), float(exam["centers"]), float(exam["days"])
     rev_parts = {}
@@ -419,9 +458,10 @@ def overrides_from_items(items, request_id):
 
 def compute_all(exams, catalog, P, ovr, settings, add_overhead=False):
     out = []
-    for _, e in exams.iterrows():
-        rid = e.request_id
+    for _, e0 in exams.iterrows():
+        rid = e0.request_id
         st_row = settings[settings.request_id == rid]
+        e = effective_exam(e0, st_row.iloc[0] if len(st_row) else None)
         if len(st_row) and str(st_row.iloc[0].services).strip():
             svcs = [s for s in str(st_row.iloc[0].services).split("|") if s]
         else:
