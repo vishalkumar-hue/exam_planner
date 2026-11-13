@@ -4,7 +4,7 @@ import altair as alt
 import streamlit as st
 from exam_logic import (CAT_SERVICES, ALL_SERVICES, SET_COLS, Store, load_catalog, normalize_catalog, load_params, load_exams,
                         clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items,
-                        compute_all, data_checks)
+                        compute_all, data_checks, read_public_tab)
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="collapsed")
 st.markdown("""<style>
@@ -98,6 +98,10 @@ def _catalog_from_sheet(_store, tab):
 def _exams_from_sheet(_store, tab):
     return clean_exams(_store.read_tab(tab))
 
+@st.cache_data(ttl=300, show_spinner="Reading Raw Data from Google Sheet link...")
+def _exams_from_public_sheet(tab):
+    return clean_exams(read_public_tab(tab))
+
 catalog, cat_source = None, ""
 if store.kind == "gsheet":
     try:
@@ -118,11 +122,10 @@ cfg = st.expander("Settings & data source", expanded=False)
 with cfg:
     st.caption("Storage: **Google Sheet**" if store.kind == "gsheet" else "Storage: **local files** (use Google Sheet on Streamlit Cloud, see README)")
     if getattr(store, "error", None): st.warning(store.error)
-    if store.kind == "gsheet":
-        if st.button("Refresh exam list from Google Sheet", width="stretch"):
-            st.cache_data.clear()
-            st.session_state.pop("tables", None)      # reload saved changes too
-            st.rerun()
+    if st.button("Refresh exam list from Google Sheet", width="stretch"):
+        st.cache_data.clear()
+        st.session_state.pop("tables", None)      # reload saved changes too
+        st.rerun()
     up = st.file_uploader("Or load an exam list for this session only (Excel with 'Raw Data' sheet, or CSV)", type=["xlsx", "csv"])
     add_overhead = st.toggle("Add overhead % of revenue", value=False,
         help=f"Logistics {P['overhead']['logistics_pct']:.0%} + Central/CCR {P['overhead']['central_pct']:.0%} of revenue (from Excel Assumptions). Off by default because logistics/procurement are already items in the catalog.")
@@ -144,7 +147,11 @@ try:
             st.warning(f"Could not read tab '{RAW_TAB}' from the Google Sheet ({e}). Showing the backup list from data/exams.csv instead.")
             exams = load_exams(); exam_source = "built-in sample exam list"
     else:
-        exams = load_exams(); exam_source = "built-in sample exam list"
+        try:
+            exams = _exams_from_public_sheet(RAW_TAB).copy(); exam_source = f"Google Sheet link, tab '{RAW_TAB}'"
+        except Exception as e:
+            st.warning(f"Could not read tab '{RAW_TAB}' from the Google Sheet link ({e}). Showing the built-in sample list instead.")
+            exams = load_exams(); exam_source = "built-in sample exam list"
 except Exception as e:
     st.error(f"Could not read exam list: {e}"); st.stop()
 cfg.caption(f"Exam list: **{exam_source}** ({len(exams)} exams)  |  Catalog: **{cat_source}** ({len(catalog)} items)")
