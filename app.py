@@ -4,7 +4,7 @@ import altair as alt
 import streamlit as st
 from exam_logic import (CAT_SERVICES, ALL_SERVICES, SET_COLS, Store, load_catalog, normalize_catalog, load_params, load_exams,
                         clean_exams, services_from_raw, build_items, finalize_items, summarize, overrides_from_items,
-                        compute_all, data_checks, read_public_tab)
+                        compute_all, data_checks, read_public_tab, exam_units, effective_exam, MAN_UNITS)
 
 st.set_page_config(page_title="Exam Service Planner", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="collapsed")
 st.markdown("""<style>
@@ -166,12 +166,39 @@ with tab_plan:
     if pick is None:
         st.info("Pick an exam above to see and change what we are giving in it.", icon=":material/arrow_upward:")
     else:
-        e = exams[exams.label == pick].iloc[0]; rid = e.request_id
+        e_raw = exams[exams.label == pick].iloc[0]; rid = e_raw.request_id
         s_row = sett[sett.request_id == rid]
         saved_svcs = [s for s in str(s_row.iloc[0].services).split("|") if s] if len(s_row) else []
-        default_svcs = saved_svcs or services_from_raw(e.services)
+        default_svcs = saved_svcs or services_from_raw(e_raw.services)
         saved_rev = float(s_row.iloc[0].rev_override) if len(s_row) and str(s_row.iloc[0].rev_override) not in ("", "nan") else 0.0
         ver = st.session_state.get("ver", {}).get(rid, 0)
+
+        # ---- inputs: automatic from Raw Data, or manual for this exam ----
+        srow = s_row.iloc[0] if len(s_row) else None
+        base = effective_exam(e_raw, srow)                       # Raw Data + any saved manual values
+        has_man = srow is not None and any(str(srow.get(c, "")).strip() not in ("", "nan") for c in
+                                           ["candidates", "centers", "shifts", "days"] + list(MAN_UNITS))
+        manual = st.toggle("Manual inputs (candidates, centers, shifts, days, cameras, operators, guards)", value=has_man, key=f"man_{rid}_{ver}",
+                           help="OFF = everything is taken automatically from Raw Data and calculated with the Assumptions. ON = you can change any number for this exam only.")
+        e = e_raw.copy(); man_save = {}
+        for fld in ("candidates", "centers", "shifts", "days"):
+            e[fld] = base[fld]
+        for k in ("cam", "op", "fg", "bg"):
+            e[f"man_{k}"] = float("nan")
+        if manual:
+            ic = st.columns(4)
+            for col, (lab, fld, mn) in zip(ic, [("Candidates", "candidates", 0.0), ("Centers", "centers", 0.0), ("Shifts/day", "shifts", 1.0), ("Days", "days", 1.0)]):
+                v = col.number_input(lab, min_value=mn, value=float(max(base[fld], mn)), step=1.0, key=f"in_{fld}_{rid}_{ver}")
+                e[fld] = v
+                if v != float(e_raw[fld]): man_save[fld] = v
+            auto_u = exam_units(e.candidates, e.centers, P, e.shifts, e.days)
+            uc = st.columns(4)
+            for col, (lab, colname, k) in zip(uc, [("Cameras", "cameras", "cam"), ("Operators", "operators", "op"), ("Frisk guards", "guards", "fg"), ("Baggage guards", "bag_guards", "bg")]):
+                saved = base[f"man_{k}"]
+                dflt = float(saved) if saved == saved else float(auto_u[k])
+                v = col.number_input(f"{lab} (auto: {auto_u[k]:,.0f})", min_value=0.0, value=dflt, step=1.0, key=f"in_{colname}_{rid}_{ver}_{int(auto_u[k])}")
+                if v != float(auto_u[k]):
+                    e[f"man_{k}"] = v; man_save[colname] = v
 
         if e.candidates <= 0 or e.centers <= 0:
             st.warning("Candidates or Centers are missing for this exam - numbers will be zero until they are filled in the Raw Data.")
@@ -240,11 +267,11 @@ with tab_plan:
         if sv.button("Save this exam", type="primary"):
             new_o = overrides_from_items(items2, rid)
             ovr2 = pd.concat([ovr[ovr.request_id != rid], new_o], ignore_index=True)
-            auto = services_from_raw(e.services)
-            keep = services != auto or rev_o > 0 or note.strip()
+            auto = services_from_raw(e_raw.services)
+            keep = services != auto or rev_o > 0 or note.strip() or bool(man_save)
             sett2 = sett[sett.request_id != rid]
             if keep:
-                sett2 = pd.concat([sett2, pd.DataFrame([[rid, "|".join(services), rev_o if rev_o > 0 else "", note]], columns=SET_COLS)], ignore_index=True)
+                sett2 = pd.concat([sett2, pd.DataFrame([[rid, "|".join(services), rev_o if rev_o > 0 else "", note] + [man_save.get(c, "") for c in SET_COLS[4:]]], columns=SET_COLS)], ignore_index=True)
             try:
                 store.save("overrides", ovr2); store.save("settings", sett2)
                 st.session_state.tables = {"overrides": ovr2.astype(str), "settings": sett2.astype(str)}
