@@ -202,7 +202,7 @@ def _parse_dates(series):
         return series
     txt = series.astype(str).str.strip().str.replace(r"\s+.*$", "", regex=True)   # drop any time part
     out = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
-    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%y", "%d.%m.%Y"):
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%y", "%d.%m.%Y", "%d-%b-%y", "%d-%b-%Y"):
         todo = out.isna()
         if not todo.any():
             break
@@ -261,6 +261,20 @@ def clean_exams(df):
     df["services"] = df["services"].fillna("").astype(str)
     df = df.drop_duplicates("request_id", keep="last")
     return df.reset_index(drop=True)
+
+
+SHEET_ID = "1N7Lx3qCe96eFlDWG-qilCCzCusiJ0rP4xUQxgmgu52w"   # Google Sheet that holds the 'Raw Data' tab
+
+
+def read_public_tab(tab, sheet_id=SHEET_ID):
+    """Read one tab of a Google Sheet through its CSV link (no service account needed).
+    Works only if the sheet is shared as 'Anyone with the link -> Viewer'."""
+    from urllib.parse import quote
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={quote(tab)}"
+    df = pd.read_csv(url, dtype=str, keep_default_na=False)
+    if "Request ID" not in [str(c).strip() for c in df.columns]:
+        raise RuntimeError("Sheet did not open as CSV - share it as 'Anyone with the link: Viewer', and check the tab name")
+    return df
 
 
 def load_exams(path=None):
